@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useMemo, useEffect } from "react";
-import { Search, Sparkles, Copy, Heart, Plus, Trash2, Edit2, X, Download, TrendingUp, Tag as TagIcon, Activity, ArrowLeft } from "lucide-react";
+import { Search, Sparkles, Copy, Heart, Plus, Trash2, Edit2, X, Download, TrendingUp, Tag as TagIcon, Activity, ArrowLeft, ArrowUp, Folder, LayoutTemplate } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Cell, LineChart, Line } from "recharts";
 import { useAuth } from "@/_core/hooks/useAuth";
@@ -42,6 +42,27 @@ export default function App() {
   const [expandedPromptId, setExpandedPromptId] = useState<number | null>(null);
 
   const [showExportModal, setShowExportModal] = useState(false);
+  const [showScrollTop, setShowScrollTop] = useState(false);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      if (window.scrollY > 300) {
+        setShowScrollTop(true);
+      } else {
+        setShowScrollTop(false);
+      }
+    };
+
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  const scrollToTop = () => {
+    window.scrollTo({
+      top: 0,
+      behavior: 'smooth'
+    });
+  };
 
   // Queries
   const { data: prompts = [], refetch: refetchPrompts } = trpc.prompts.list.useQuery();
@@ -122,6 +143,15 @@ export default function App() {
       return matchesSearch && matchesFavorite && matchesTag;
     });
   }, [prompts, searchQuery, showFavoritesOnly, activeFilterTagIds, currentView, tags]);
+
+  const handleTagFilterToggle = (tagId: number | null) => {
+    if (tagId === null) {
+      setActiveFilterTagIds([]);
+    } else {
+      setActiveFilterTagIds(prev => prev.includes(tagId) ? prev.filter(id => id !== tagId) : [...prev, tagId]);
+    }
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
 
   // Chart Data
   const tagUsageData = useMemo(() => {
@@ -288,6 +318,9 @@ export default function App() {
     if (loginUsername === "larasaales" && loginPassword === "162385") {
       setLoginError("");
       login({ id: "1", name: "Lara Sales", username: loginUsername });
+    } else if (loginUsername === "Clau" && loginPassword === "lara") {
+      setLoginError("");
+      login({ id: "2", name: "Clau", username: loginUsername });
     } else {
       setLoginError("Usuário ou senha inválidos.");
     }
@@ -417,12 +450,7 @@ export default function App() {
             
             <div className="flex items-center gap-3">
               <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-white/5 border border-white/5 text-sm font-medium text-slate-300">
-                <div className="grid grid-cols-2 gap-[2px] w-3.5 h-3.5 opacity-70">
-                  <div className="border border-current rounded-[2px]" />
-                  <div className="border border-current rounded-[2px]" />
-                  <div className="border border-current rounded-[2px]" />
-                  <div className="border border-current rounded-[2px]" />
-                </div>
+                <Folder size={14} className="opacity-70" />
                 {tags.length} Categorias
               </div>
               <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-white/5 border border-white/5 text-sm font-medium text-slate-300">
@@ -454,7 +482,7 @@ export default function App() {
 
           <nav className="space-y-1 overflow-y-auto pb-8">
             <button
-              onClick={() => setActiveFilterTagIds([])}
+              onClick={() => handleTagFilterToggle(null)}
               className={`relative w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
                 activeFilterTagIds.length === 0
                   ? 'bg-white/5 text-white'
@@ -464,11 +492,11 @@ export default function App() {
               {activeFilterTagIds.length === 0 && (
                 <div className="absolute left-0 top-2 bottom-2 w-[3px] rounded-r-md bg-[#ceaf7a]" />
               )}
-              <div className={`w-8 h-8 rounded-md flex items-center justify-center text-xs transition-all border ${activeFilterTagIds.length === 0 ? 'border-white/10 bg-white/5 text-white' : 'border-transparent bg-white/[0.04] text-slate-400'}`}>
-                T
+              <div className={`w-8 h-8 rounded-md flex items-center justify-center transition-all border relative z-10 ${activeFilterTagIds.length === 0 ? 'border-white/10 bg-white/5 text-white' : 'border-transparent bg-white/[0.04] text-slate-400'}`}>
+                <LayoutTemplate size={16} />
               </div>
-              <span className="flex-1 text-left">Todos os Prompts</span>
-              <span className={`text-[10px] uppercase font-bold tracking-wider ${activeFilterTagIds.length === 0 ? 'text-[#ceaf7a]' : 'text-slate-400'}`}>{prompts.length}</span>
+              <span className="flex-1 text-left relative z-10">Todos os Prompts</span>
+              <span className={`text-[10px] uppercase font-bold tracking-wider relative z-10 ${activeFilterTagIds.length === 0 ? 'text-[#ceaf7a]' : 'text-slate-400'}`}>{prompts.length}</span>
             </button>
             
             {tags.map((tag) => {
@@ -478,21 +506,27 @@ export default function App() {
               return (
                 <div key={tag.id} className="group relative">
                   <button
-                    onClick={() => setActiveFilterTagIds(prev => prev.includes(tag.id) ? prev.filter(id => id !== tag.id) : [...prev, tag.id])}
-                    className={`relative w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-all ${
+                    onClick={() => handleTagFilterToggle(tag.id)}
+                    className={`relative w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-all overflow-hidden ${
                       isSelected
-                        ? 'bg-white/[0.04] text-white'
+                        ? 'text-white bg-white/[0.04]'
                         : 'text-slate-300 hover:bg-white/[0.06] hover:text-slate-200'
                     }`}
                   >
                     {isSelected && (
-                      <div 
-                        className="absolute left-0 top-2 bottom-2 w-[3px] rounded-r-md"
-                        style={{ backgroundColor: tag.color || '#ceaf7a', boxShadow: `0 0 10px ${tag.color || '#ceaf7a'}40` }}
-                      />
+                      <>
+                        <div 
+                          className="absolute inset-0 opacity-10"
+                          style={{ backgroundColor: tag.color || '#ceaf7a' }}
+                        />
+                        <div 
+                          className="absolute left-0 top-2 bottom-2 w-[3px] rounded-r-md"
+                          style={{ backgroundColor: tag.color || '#ceaf7a', boxShadow: `0 0 10px ${tag.color || '#ceaf7a'}40` }}
+                        />
+                      </>
                     )}
                     <div 
-                      className="w-8 h-8 rounded-md flex items-center justify-center text-xs font-semibold transition-all"
+                      className="w-8 h-8 rounded-md flex items-center justify-center text-xs font-semibold transition-all relative z-10"
                       style={{ 
                         backgroundColor: isSelected ? `${tag.color || '#ceaf7a'}15` : 'rgba(255,255,255,0.02)',
                         color: isSelected ? (tag.color || '#ceaf7a') : 'rgba(255,255,255,0.4)',
@@ -501,7 +535,7 @@ export default function App() {
                     >
                       {tag.name.charAt(0).toUpperCase()}
                     </div>
-                    <div className="flex-1 text-left flex flex-col items-start min-w-0">
+                    <div className="flex-1 text-left flex flex-col items-start min-w-0 relative z-10">
                       <span className="font-medium truncate w-full">{tag.name}</span>
                       {tagPromptsCount > 0 && <span className="text-[10px] text-slate-400 mt-0.5">{tagPromptsCount} prompts</span>}
                     </div>
@@ -547,7 +581,7 @@ export default function App() {
               ) : (
                 <div className="mb-6">
                   <div className="flex items-center gap-3 mb-2">
-                     <div className="w-3.5 h-3.5 rounded-full bg-slate-400" />
+                     <LayoutTemplate size={20} className="text-[#ceaf7a]" />
                      <h2 className="text-2xl font-bold text-white" style={{ fontFamily: "'Playfair Display', serif" }}>Todos os Prompts</h2>
                   </div>
                   <p className="text-slate-300 text-sm pl-[26px]">Navegue por toda sua biblioteca de templates.</p>
@@ -806,31 +840,35 @@ export default function App() {
                         </div>
                       </div>
 
-                      <div className="absolute top-0 right-0 flex items-center gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-all duration-300 bg-[#111318]/90 backdrop-blur-md p-1.5 rounded-xl border border-white/[0.05] shadow-xl md:translate-y-1 md:group-hover:translate-y-0">
+                      <div className="absolute top-0 right-0 flex items-center gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 focus-within:opacity-100 transition-all duration-300 bg-[#111318]/90 backdrop-blur-md p-1.5 rounded-xl border border-white/[0.05] shadow-xl md:translate-y-1 md:group-hover:translate-y-0 focus-within:translate-y-0 z-20">
                         <button
                           onClick={(e) => { e.stopPropagation(); handleToggleFavorite(prompt.id, prompt.isFavorite); }}
-                          className="p-2 hover:bg-white/[0.1] rounded-lg transition-colors"
+                          className="p-2 hover:bg-white/[0.1] rounded-lg transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/50"
+                          title="Favoritar"
                         >
                           <Heart
                             size={18}
-                            className={prompt.isFavorite ? "fill-red-400 text-red-400" : "text-slate-300"}
+                            className={prompt.isFavorite ? "fill-red-400 text-red-400" : "text-slate-200 hover:text-white"}
                           />
                         </button>
                         <button
                           onClick={(e) => { e.stopPropagation(); handleCopyPrompt(prompt.content); }}
-                          className="p-2 hover:bg-white/[0.1] rounded-lg transition-colors"
+                          className="p-2 hover:bg-white/[0.1] rounded-lg transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/50"
+                          title="Copiar"
                         >
-                          <Copy size={18} className="text-slate-300 hover:text-white" />
+                          <Copy size={18} className="text-slate-200 hover:text-white" />
                         </button>
                         <button
                           onClick={(e) => { e.stopPropagation(); handleEditPrompt(prompt); }}
-                          className="p-2 hover:bg-white/[0.1] rounded-lg transition-colors"
+                          className="p-2 hover:bg-white/[0.1] rounded-lg transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/50"
+                          title="Editar"
                         >
-                          <Edit2 size={18} className="text-slate-300 hover:text-white" />
+                          <Edit2 size={18} className="text-slate-200 hover:text-white" />
                         </button>
                         <button
                           onClick={(e) => { e.stopPropagation(); deletePromptMutation.mutate(prompt.id); }}
-                          className="p-2 hover:bg-white/[0.1] rounded-lg transition-colors"
+                          className="p-2 hover:bg-red-500/[0.1] rounded-lg transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500/50"
+                          title="Excluir"
                         >
                           <Trash2 size={18} className="text-red-400 hover:text-red-300" />
                         </button>
@@ -1110,19 +1148,22 @@ export default function App() {
                       <div className="flex items-center gap-2">
                         <button
                           onClick={() => handleToggleFavorite(prompt.id, prompt.isFavorite)}
-                          className="p-2.5 rounded-xl hover:bg-white/10 text-slate-300 transition-colors"
+                          className="p-2.5 rounded-xl hover:bg-white/10 text-slate-200 transition-colors focus:outline-none focus:ring-2 focus:ring-amber-500/50"
+                          title="Favoritar"
                         >
                           <Heart size={20} className={prompt.isFavorite ? "fill-red-500 text-red-500" : ""} />
                         </button>
                         <button
                           onClick={() => handleCopyPrompt(prompt.content)}
-                          className="p-2.5 rounded-xl hover:bg-white/10 text-slate-300 hover:text-white transition-colors"
+                          className="p-2.5 rounded-xl hover:bg-white/10 text-slate-200 hover:text-white transition-colors focus:outline-none focus:ring-2 focus:ring-amber-500/50"
+                          title="Copiar"
                         >
                           <Copy size={20} />
                         </button>
                         <button
                           onClick={() => setExpandedPromptId(null)}
-                          className="p-2.5 rounded-xl hover:bg-white/10 text-slate-300 hover:text-white transition-colors ml-2"
+                          className="p-2.5 rounded-xl hover:bg-white/10 text-slate-200 hover:text-white transition-colors ml-2 focus:outline-none focus:ring-2 focus:ring-amber-500/50"
+                          title="Fechar"
                         >
                           <X size={20} />
                         </button>
@@ -1193,6 +1234,22 @@ export default function App() {
               </div>
             </motion.div>
           </motion.div>
+        )}
+      </AnimatePresence>
+      
+      {/* Scroll to Top Button */}
+      <AnimatePresence>
+        {showScrollTop && (
+          <motion.button
+            initial={{ opacity: 0, scale: 0.8, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.8, y: 20 }}
+            onClick={scrollToTop}
+            className="fixed bottom-6 right-6 p-3 rounded-full bg-amber-500/90 text-slate-900 shadow-xl hover:bg-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-500/50 backdrop-blur-sm transition-all z-40 group"
+            title="Voltar ao topo"
+          >
+            <ArrowUp size={24} className="group-hover:-translate-y-1 transition-transform" />
+          </motion.button>
         )}
       </AnimatePresence>
     </div>
