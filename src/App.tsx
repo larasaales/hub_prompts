@@ -4,15 +4,87 @@
  */
 
 import React, { useState, useMemo, useEffect } from "react";
-import { Search, Sparkles, Copy, Heart, Plus, Trash2, Edit2, X, Download, TrendingUp, Tag as TagIcon, Activity, ArrowLeft, ArrowUp, Folder, LayoutTemplate } from "lucide-react";
+import { Search, Sparkles, Copy, Heart, Plus, Trash2, Edit2, X, Download, TrendingUp, Tag as TagIcon, Activity, ArrowLeft, ArrowUp, Folder, LayoutTemplate, Menu } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Cell, LineChart, Line } from "recharts";
+import ReactMarkdown from 'react-markdown';
 import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { getLoginUrl } from "@/const";
 import { trpc } from "@/lib/trpc";
 import { toast, Toaster } from "sonner";
 import PromptEditor from "@/components/PromptEditor";
+
+const DynamicPromptPreview = ({ content, onCopy }: { content: string, onCopy: (text: string) => void }) => {
+  const [variables, setVariables] = useState<Record<string, string>>({});
+  
+  const varNames = useMemo(() => {
+    const matches = Array.from(content.matchAll(/\[([^\]]+)\]/g));
+    const vars: string[] = [];
+    matches.forEach(m => {
+      if (!vars.includes(m[1])) {
+        vars.push(m[1]);
+      }
+    });
+    return vars;
+  }, [content]);
+  
+  const interpolatedContent = useMemo(() => {
+    let result = content;
+    varNames.forEach(v => {
+      const value = variables[v] || `[${v}]`;
+      const regex = new RegExp(`\\[${v.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&')}\\]`, 'g');
+      result = result.replace(regex, value);
+    });
+    return result;
+  }, [content, variables, varNames]);
+
+  return (
+    <div className="flex flex-col gap-6 w-full pb-8">
+      {varNames.length > 0 && (
+        <div className="bg-white/[0.03] border border-white/10 rounded-2xl p-5 backdrop-blur-md">
+          <h4 className="text-sm font-semibold text-[#ceaf7a] mb-4 flex items-center gap-2">
+            <LayoutTemplate size={16} />
+            Variáveis Dinâmicas
+          </h4>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {varNames.map(v => (
+              <div key={v} className="flex flex-col gap-1.5 cursor-text">
+                <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider">{v}</label>
+                <input
+                  type="text"
+                  value={variables[v] || ''}
+                  onChange={(e) => setVariables({...variables, [v]: e.target.value})}
+                  placeholder={`Preencher ${v}...`}
+                  className="w-full px-4 py-2.5 bg-[#0a0a0a]/50 border border-white/10 rounded-xl text-sm text-white placeholder-slate-600 focus:outline-none focus:border-[#ceaf7a]/50 transition-colors"
+                />
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div className="bg-white/[0.02] border border-white/[0.05] rounded-3xl p-8 backdrop-blur-xl">
+        <div className="markdown-body prose prose-invert prose-amber max-w-none prose-pre:bg-[#0a0a0a]/50 prose-pre:border prose-pre:border-white/10 prose-p:text-slate-300 prose-headings:text-white prose-a:text-[#ceaf7a] prose-strong:text-[#ceaf7a]">
+          <ReactMarkdown>{interpolatedContent}</ReactMarkdown>
+        </div>
+      </div>
+
+      <div className="flex justify-end pt-4">
+        <Button 
+          onClick={() => {
+            onCopy(interpolatedContent);
+            toast.success("Prompt copiado com as variáveis!");
+          }} 
+          className="gap-2 bg-gradient-to-r from-amber-600 to-yellow-500 hover:from-amber-500 hover:to-yellow-400 text-slate-950 font-medium rounded-xl h-11 px-6 shadow-lg hover:shadow-xl transition-all"
+        >
+          <Copy size={16} />
+          Copiar Prompt Final
+        </Button>
+      </div>
+    </div>
+  );
+};
 
 const HERO_IMG = "https://private-us-east-1.manuscdn.com/sessionFile/7BW5DWg8phKmxaxX6QAzec/sandbox/5zuPKqEtgMA6SaihHgN6z5-img-2_1772131374000_na1fn_aGVyby1hYnN0cmFjdC1tZXNo.png?x-oss-process=image/resize,w_1920,h_1920/format,webp/quality,q_80&Expires=1798761600&Policy=eyJTdGF0ZW1lbnQiOlt7IlJlc291cmNlIjoiaHR0cHM6Ly9wcml2YXRlLXVzLWVhc3QtMS5tYW51c2Nkbi5jb20vc2Vzc2lvbkZpbGUvN0JXNURXZzhwaEtteGF4WDZRQXplYy9zYW5kYm94LzV6dVBLcUV0Z01BNlNhaWhIZ042ejUtaW1nLTJfMTc3MjEzMTM3NDAwMF9uYTFmbl9hR1Z5YnkxaFluTjBjbUZqZEMxdFpYTm8ucG5nP3gtb3NzLXByb2Nlc3M9aW1hZ2UvcmVzaXplLHdfMTkyMCxoXzE5MjAvZm9ybWF0LHdlYnAvcXVhbGl0eSxxXzgwIiwiQ29uZGl0aW9uIjp7IkRhdGVMZXNzVGhhbiI6eyJBV1M6RXBvY2hUaW1lIjoxNzk4NzYxNjAwfX19XX0_&Key-Pair-Id=K2HSFNDJXOU9YS&Signature=WSOl9uQ81PAAsNEIXEO1BJQ5CCIFvQBLXtbQJDZUzgA3xBhHE9J7ULgTSMGBd9S68qeYOto8EHCc2ro5Xmpv719gw3xbWCgllKmeenYOVtiPhCnk~5Pu2hzUM54SIghBi7cYEZuK90hL-6RoRE6pZ226AwPviKP5zPd09ru52uNUUN9JAefHcv3sQ8-qze9B4QPRWUtHCK3HPOI~aaCMA~nTA-h1uGa~zfQ0BJrp97vr81kV0NuFn5U9cHgOg~SND1Sz4~1EzEy87vx5ElUbrzu~eIwIi52EcaMmZ73uyZxmlLt5RR8LJt0ZmFz7VIa23wd3iCQCh06eQ2W2Kta-rA__";
 
@@ -27,6 +99,7 @@ export default function App() {
   const [activeFilterTagIds, setActiveFilterTagIds] = useState<number[]>([]);
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
   const [currentView, setCurrentView] = useState<'home' | 'dashboard'>('home');
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isPromptModalOpen, setIsPromptModalOpen] = useState(false);
   const [editingPromptId, setEditingPromptId] = useState<number | null>(null);
   const [showNewTagModal, setShowNewTagModal] = useState(false);
@@ -40,6 +113,8 @@ export default function App() {
   const [loginPassword, setLoginPassword] = useState("");
   const [loginError, setLoginError] = useState("");
   const [expandedPromptId, setExpandedPromptId] = useState<number | null>(null);
+  const [tagSearchQuery, setTagSearchQuery] = useState("");
+  const [isTagDropdownOpen, setIsTagDropdownOpen] = useState(false);
 
   const [showExportModal, setShowExportModal] = useState(false);
   const [showScrollTop, setShowScrollTop] = useState(false);
@@ -207,6 +282,8 @@ export default function App() {
     setNewPromptTitle("");
     setNewPromptContent("");
     setSelectedTagIds([]);
+    setTagSearchQuery("");
+    setIsTagDropdownOpen(false);
     setIsPromptModalOpen(true);
   };
 
@@ -215,6 +292,8 @@ export default function App() {
     setNewPromptTitle(prompt.title);
     setNewPromptContent(prompt.content);
     setSelectedTagIds(prompt.tagIds || []);
+    setTagSearchQuery("");
+    setIsTagDropdownOpen(false);
     setIsPromptModalOpen(true);
   };
 
@@ -400,6 +479,14 @@ export default function App() {
               </span>
             </div>
             <div className="flex items-center gap-4">
+              {currentView === 'home' && (
+                <button
+                  onClick={() => setIsMobileMenuOpen(true)}
+                  className="hidden p-2 text-slate-300 hover:text-white"
+                >
+                  <Menu size={24} />
+                </button>
+              )}
               <button 
                 onClick={() => setCurrentView(currentView === 'home' ? 'dashboard' : 'home')}
                 className="text-sm font-medium text-[#ceaf7a] hover:text-[#e5ca9a] hidden md:block transition-colors"
@@ -463,24 +550,45 @@ export default function App() {
       </header>
 
       {/* Main Content */}
-      <div className="flex flex-1 container mx-auto px-4 md:px-8 py-8 relative z-10">
+      <div className="flex flex-1 container mx-auto px-4 md:px-8 py-8 md:pb-8 pb-28 relative z-10">
         {/* Sidebar - Tags */}
         {currentView === 'home' && (
-          <aside className="hidden md:flex flex-col w-64 pr-8 border-r border-white/[0.06]">
-            <div className="flex items-center justify-between mb-4 mt-2">
-              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-widest pl-3">
-                CATEGORIAS
-              </span>
-              <button 
-              onClick={() => setShowNewTagModal(true)}
-              className="p-1 text-slate-400 hover:text-[#ceaf7a] transition-colors"
-              title="Nova Categoria"
-            >
-              <Plus size={14} />
-            </button>
-          </div>
+          <>
+            {/* Mobile Sidebar Overlay */}
+            <AnimatePresence>
+              {isMobileMenuOpen && (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 md:hidden"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                />
+              )}
+            </AnimatePresence>
 
-          <nav className="space-y-1 overflow-y-auto pb-8">
+            <aside className={`fixed inset-y-0 left-0 z-50 w-64 transform transition-transform duration-300 ease-in-out md:relative md:translate-x-0 flex flex-col border-r border-white/5 backdrop-blur-3xl bg-[#0a0a0a]/90 md:bg-transparent md:backdrop-blur-none p-6 md:p-0 md:pr-8 pt-20 md:pt-0 ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+              <button 
+                onClick={() => setIsMobileMenuOpen(false)}
+                className="absolute top-6 right-6 md:hidden p-2 text-slate-400 hover:text-white"
+              >
+                <X size={20} />
+              </button>
+              
+              <div className="flex items-center justify-between mb-4 mt-2">
+                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-widest pl-3">
+                  CATEGORIAS
+                </span>
+                <button 
+                onClick={() => setShowNewTagModal(true)}
+                className="p-1 text-slate-400 hover:text-[#ceaf7a] transition-colors"
+                title="Nova Categoria"
+              >
+                <Plus size={14} />
+              </button>
+            </div>
+
+          <nav className="flex-1 space-y-1 overflow-y-auto pb-8">
             <button
               onClick={() => handleTagFilterToggle(null)}
               className={`relative w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
@@ -544,7 +652,24 @@ export default function App() {
               );
             })}
           </nav>
+
+          {/* Sidebar Footer Actions */}
+          <div className="mt-auto pt-4 border-t border-white/5 pb-20 md:pb-0">
+            <button
+              onClick={() => {
+                setShowExportModal(true);
+                setIsMobileMenuOpen(false);
+              }}
+              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-300 hover:bg-white/[0.06] hover:text-white transition-all md:hidden"
+            >
+              <div className="w-8 h-8 rounded-md flex items-center justify-center bg-white/[0.04] text-slate-400">
+                <Download size={16} />
+              </div>
+              <span>Exportar Prompts</span>
+            </button>
+          </div>
         </aside>
+        </>
         )}
 
         {/* Main Content Area */}
@@ -554,7 +679,7 @@ export default function App() {
               {activeFilterTagIds.length > 0 ? (
                 <div className="mb-6">
                   <div className="flex flex-col gap-4 mb-2">
-                     <h2 className="text-2xl font-bold text-white flex items-center gap-3" style={{ fontFamily: "'Playfair Display', serif" }}>
+              <h2 className="text-2xl font-bold text-white flex items-center gap-3" style={{ fontFamily: "'Playfair Display', serif" }}>
                         Filtrando por Tags ({activeFilterTagIds.length})
                      </h2>
                      <div className="flex flex-wrap gap-2">
@@ -601,43 +726,57 @@ export default function App() {
                 </button>
                 <h2 className="text-2xl font-bold text-white">Meu Dashboard Pessoal</h2>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-10">
-                <div className="backdrop-blur-xl bg-white/[0.02] border border-white/[0.08] hover:border-white/[0.15] hover:bg-white/[0.04] rounded-3xl p-7 shadow-2xl hover:shadow-[0_8px_30px_rgba(206,175,122,0.15)] transition-all relative overflow-hidden group">
-                  <div className="absolute inset-0 bg-gradient-to-br from-amber-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                  <h4 className="text-slate-300 text-sm font-medium mb-2 relative">Total de Prompts</h4>
-                  <p className="text-4xl font-bold text-white relative">{prompts.length}</p>
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-10 auto-rows-[minmax(160px,auto)]">
+                {/* Total Prompts */}
+                <div className="md:col-span-2 md:row-span-1 backdrop-blur-2xl bg-gradient-to-br from-[#ceaf7a]/10 to-transparent border border-[#ceaf7a]/20 hover:border-[#ceaf7a]/40 hover:bg-[#ceaf7a]/10 rounded-[32px] p-8 shadow-2xl transition-all relative overflow-hidden group flex flex-col justify-center">
+                  <div className="absolute top-0 right-0 p-8 opacity-20 transform translate-x-4 -translate-y-4 group-hover:scale-110 group-hover:opacity-30 transition-all duration-500">
+                    <LayoutTemplate size={120} />
+                  </div>
+                  <h4 className="text-[#ceaf7a] text-sm font-bold uppercase tracking-widest mb-2 relative z-10">Biblioteca Geral</h4>
+                  <p className="text-6xl font-bold text-white relative z-10" style={{ fontFamily: "'Playfair Display', serif" }}>{prompts.length} <span className="text-2xl text-slate-400 font-sans tracking-normal">prompts</span></p>
                 </div>
-                <div className="backdrop-blur-xl bg-white/[0.02] border border-white/[0.08] hover:border-white/[0.15] hover:bg-white/[0.04] rounded-3xl p-7 shadow-2xl hover:shadow-[0_8px_30px_rgba(239,68,68,0.15)] transition-all relative overflow-hidden group">
-                  <div className="absolute inset-0 bg-gradient-to-br from-red-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                  <h4 className="text-slate-300 text-sm font-medium mb-2 relative">Favoritos</h4>
-                  <p className="text-4xl font-bold text-red-400 drop-shadow-md relative">{prompts.filter((p: any) => p.isFavorite).length}</p>
+
+                {/* Favorites */}
+                <div className="md:col-span-1 md:row-span-1 backdrop-blur-2xl bg-[#111318]/60 border border-white/[0.08] hover:border-red-500/30 hover:bg-red-500/5 rounded-[32px] p-8 shadow-2xl transition-all relative overflow-hidden group flex flex-col justify-between">
+                  <div className="flex justify-between items-start mb-4">
+                    <h4 className="text-slate-300 text-sm font-medium">Favoritos</h4>
+                    <div className="w-10 h-10 rounded-xl bg-red-500/10 flex items-center justify-center text-red-500 group-hover:scale-110 transition-transform">
+                      <Heart size={20} className="fill-red-500/20" />
+                    </div>
+                  </div>
+                  <p className="text-5xl font-bold text-red-400">{prompts.filter((p: any) => p.isFavorite).length}</p>
                 </div>
-                <div className="backdrop-blur-xl bg-white/[0.02] border border-white/[0.08] hover:border-white/[0.15] hover:bg-white/[0.04] rounded-3xl p-7 shadow-2xl hover:shadow-[0_8px_30px_rgba(206,175,122,0.15)] transition-all relative overflow-hidden group">
-                  <div className="absolute inset-0 bg-gradient-to-br from-amber-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                  <h4 className="text-slate-300 text-sm font-medium mb-2 relative">Tags Criadas</h4>
-                  <p className="text-4xl font-bold text-amber-500 drop-shadow-md relative">{tags.length}</p>
+
+                {/* Tags Created */}
+                <div className="md:col-span-1 md:row-span-1 backdrop-blur-2xl bg-[#111318]/60 border border-white/[0.08] hover:border-amber-500/30 hover:bg-amber-500/5 rounded-[32px] p-8 shadow-2xl transition-all relative overflow-hidden group flex flex-col justify-between">
+                  <div className="flex justify-between items-start mb-4">
+                    <h4 className="text-slate-300 text-sm font-medium">Tags</h4>
+                    <div className="w-10 h-10 rounded-xl bg-amber-500/10 flex items-center justify-center text-amber-500 group-hover:scale-110 transition-transform">
+                      <TagIcon size={20} />
+                    </div>
+                  </div>
+                  <p className="text-5xl font-bold text-amber-500">{tags.length}</p>
                 </div>
-              </div>
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-10">
+
                 {/* Tag Usage Chart */}
-                <div className="backdrop-blur-xl bg-white/[0.02] border border-white/[0.08] rounded-3xl p-7 shadow-2xl">
-                  <div className="flex items-center gap-2 mb-6">
-                    <TagIcon size={18} className="text-amber-500" />
-                    <h3 className="text-lg font-semibold text-white">Uso de Tags</h3>
+                <div className="md:col-span-2 md:row-span-2 backdrop-blur-2xl bg-[#111318]/60 border border-white/[0.08] rounded-[32px] p-8 shadow-2xl flex flex-col min-h-[320px]">
+                  <div className="flex items-center gap-2 mb-8">
+                    <TrendingUp size={18} className="text-slate-400" />
+                    <h3 className="text-lg font-semibold text-white">Top Categorias</h3>
                   </div>
                   {tagUsageData.length > 0 ? (
-                    <div className="h-64 cursor-pointer">
+                    <div className="flex-1 cursor-pointer">
                       <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={tagUsageData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                          <CartesianGrid strokeDasharray="3 3" stroke="#ffffff10" vertical={false} />
-                          <XAxis dataKey="name" stroke="#64748b" fontSize={12} tickLine={false} axisLine={false} />
-                          <YAxis stroke="#64748b" fontSize={12} tickLine={false} axisLine={false} allowDecimals={false} />
+                        <BarChart data={tagUsageData} margin={{ top: 0, right: 0, left: -24, bottom: 0 }}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="#ffffff08" vertical={false} />
+                          <XAxis dataKey="name" stroke="#64748b" fontSize={11} tickLine={false} axisLine={false} />
+                          <YAxis stroke="#64748b" fontSize={11} tickLine={false} axisLine={false} allowDecimals={false} />
                           <Tooltip 
-                            cursor={{ fill: '#ffffff0a' }}
-                            contentStyle={{ backgroundColor: '#0f172a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px' }}
-                            itemStyle={{ color: '#fff' }}
+                            cursor={{ fill: '#ffffff05' }}
+                            contentStyle={{ backgroundColor: '#0f1115', border: '1px solid rgba(206,175,122,0.2)', borderRadius: '16px', boxShadow: '0 8px 30px rgba(0,0,0,0.5)' }}
+                            itemStyle={{ color: '#ceaf7a' }}
                           />
-                          <Bar dataKey="count" radius={[4, 4, 0, 0]}>
+                          <Bar dataKey="count" radius={[6, 6, 0, 0]} maxBarSize={40}>
                             {tagUsageData.map((entry, index) => (
                               <Cell key={`cell-${index}`} fill={entry.color} />
                             ))}
@@ -646,26 +785,26 @@ export default function App() {
                       </ResponsiveContainer>
                     </div>
                   ) : (
-                    <div className="h-64 flex items-center justify-center text-slate-400 text-sm">
-                      Nenhum dado de tag disponível.
+                    <div className="flex-1 flex items-center justify-center text-slate-500 text-sm">
+                      Sem dados de tags
                     </div>
                   )}
                 </div>
 
                 {/* Favorites Trend Chart */}
-                <div className="backdrop-blur-xl bg-white/[0.02] border border-white/[0.08] rounded-3xl p-7 shadow-2xl">
-                  <div className="flex items-center gap-2 mb-6">
-                    <TrendingUp size={18} className="text-red-400" />
+                <div className="md:col-span-2 md:row-span-2 backdrop-blur-2xl bg-[#111318]/60 border border-white/[0.08] rounded-[32px] p-8 shadow-2xl flex flex-col min-h-[320px]">
+                  <div className="flex items-center gap-2 mb-8">
+                    <Activity size={18} className="text-red-400" />
                     <h3 className="text-lg font-semibold text-white">Tendência de Favoritos</h3>
                   </div>
-                  <div className="h-64 cursor-pointer">
+                  <div className="flex-1 cursor-pointer">
                     <ResponsiveContainer width="100%" height="100%">
-                      <LineChart data={favoritesActivityData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#ffffff10" vertical={false} />
-                        <XAxis dataKey="name" stroke="#64748b" fontSize={12} tickLine={false} axisLine={false} />
-                        <YAxis stroke="#64748b" fontSize={12} tickLine={false} axisLine={false} allowDecimals={false} />
+                      <LineChart data={favoritesActivityData} margin={{ top: 0, right: 0, left: -24, bottom: 0 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#ffffff08" vertical={false} />
+                        <XAxis dataKey="name" stroke="#64748b" fontSize={11} tickLine={false} axisLine={false} />
+                        <YAxis stroke="#64748b" fontSize={11} tickLine={false} axisLine={false} allowDecimals={false} />
                         <Tooltip 
-                          contentStyle={{ backgroundColor: '#0f172a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px' }}
+                          contentStyle={{ backgroundColor: '#0f1115', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '16px', boxShadow: '0 8px 30px rgba(0,0,0,0.5)' }}
                           itemStyle={{ color: '#fff' }}
                         />
                         <Line type="monotone" dataKey="favs" name="Favoritos" stroke="#f87171" strokeWidth={3} dot={{ r: 4, fill: '#f87171', strokeWidth: 0 }} activeDot={{ r: 6 }} />
@@ -745,17 +884,17 @@ export default function App() {
           {/* Search and Controls */}
           <div className="mb-8 space-y-4">
             <div className="flex flex-col sm:flex-row gap-3">
-              <div className="flex-1 relative">
-                <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <div className="flex-1 relative group">
+                <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-amber-500 transition-colors" />
                 <input
                   type="text"
                   placeholder={currentView === 'dashboard' ? "Buscar nos favoritos..." : "Buscar prompts..."}
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white placeholder-slate-400 focus:outline-none focus:border-amber-500/50 transition-all backdrop-blur-md shadow-sm"
+                  className="w-full h-11 pl-10 pr-4 rounded-xl bg-white/5 border border-white/10 text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500/50 transition-all backdrop-blur-md shadow-sm"
                 />
               </div>
-              <div className="flex gap-2">
+              <div className="hidden md:flex gap-2">
                 {currentView !== 'dashboard' && (
                   <Button
                     onClick={() => setShowFavoritesOnly(!showFavoritesOnly)}
@@ -830,8 +969,27 @@ export default function App() {
                             return (
                               <span
                                 key={tag.id}
-                                className="px-2.5 py-0.5 rounded-full text-xs font-medium border"
-                                style={{ color: tag.color, backgroundColor: `${tag.color || '#6366f1'}15`, borderColor: `${tag.color || '#6366f1'}30` }}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleTagFilterToggle(tag.id);
+                                }}
+                                className="px-3 py-1 rounded-md text-[10px] uppercase tracking-wider font-bold border transition-all duration-300 hover:-translate-y-0.5 cursor-pointer shadow-sm hover:shadow-md"
+                                style={{ 
+                                  color: tag.color, 
+                                  backgroundColor: `${tag.color || '#6366f1'}15`, 
+                                  borderColor: `${tag.color || '#6366f1'}40`
+                                }}
+                                onMouseEnter={(e) => {
+                                  e.currentTarget.style.backgroundColor = `${tag.color || '#6366f1'}25`;
+                                  e.currentTarget.style.borderColor = `${tag.color || '#6366f1'}60`;
+                                  e.currentTarget.style.boxShadow = `0 0 12px ${tag.color || '#6366f1'}30`;
+                                }}
+                                onMouseLeave={(e) => {
+                                  e.currentTarget.style.backgroundColor = `${tag.color || '#6366f1'}15`;
+                                  e.currentTarget.style.borderColor = `${tag.color || '#6366f1'}40`;
+                                  e.currentTarget.style.boxShadow = `none`;
+                                }}
+                                title={`Filtrar por ${tag.name}`}
                               >
                                 {tag.name}
                               </span>
@@ -902,7 +1060,7 @@ export default function App() {
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
               onClick={(e) => e.stopPropagation()}
-              className="backdrop-blur-3xl bg-slate-950/80 rounded-2xl p-6 w-full max-w-2xl border border-white/10 shadow-[0_0_50px_rgba(0,0,0,0.5)] overflow-y-auto max-h-[90vh]"
+              className="backdrop-blur-[40px] bg-white/[0.03] rounded-[32px] p-8 w-full max-w-2xl border border-white/10 shadow-[0_8px_32px_0_rgba(0,0,0,0.4)] overflow-y-auto max-h-[90vh]"
             >
               <div className="flex items-center justify-between mb-6">
                 <h2 className="text-xl font-semibold text-white">{editingPromptId ? "Editar Prompt" : "Novo Prompt"}</h2>
@@ -925,31 +1083,135 @@ export default function App() {
                   onChange={setNewPromptContent}
                 />
 
-                <div className="space-y-2">
-                  <label className="text-sm text-slate-300 mb-1 block">Tags:</label>
-                  <div className="flex flex-wrap gap-2">
-                    {tags.length === 0 && <span className="text-sm text-slate-400">Nenhuma tag criada.</span>}
-                    {tags.map(tag => (
-                      <button
-                        key={tag.id}
-                        onClick={() => {
-                          if (selectedTagIds.includes(tag.id)) {
-                            setSelectedTagIds(selectedTagIds.filter(id => id !== tag.id));
-                          } else {
-                            setSelectedTagIds([...selectedTagIds, tag.id]);
-                          }
-                        }}
-                        className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors border ${
-                          selectedTagIds.includes(tag.id)
-                            ? 'bg-amber-500/20 border-amber-500/50 text-amber-300'
-                            : 'bg-white/5 border-white/10 text-slate-300 hover:bg-white/10'
-                        }`}
-                        style={selectedTagIds.includes(tag.id) ? { borderColor: tag.color, color: tag.color, backgroundColor: `${tag.color || '#6366f1'}20` } : undefined}
-                      >
-                        {tag.name}
-                      </button>
-                    ))}
+                <div className="space-y-2 relative">
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-sm text-slate-300 block">Tags:</label>
                   </div>
+                  <div 
+                    className="w-full px-4 py-3 rounded-lg flex flex-wrap gap-2 items-center bg-white/[0.08] border border-white/[0.1] focus-within:border-amber-500/50 transition-colors relative cursor-text min-h-[50px]"
+                    onClick={() => setIsTagDropdownOpen(true)}
+                  >
+                    {selectedTagIds.map(id => {
+                      const tag = tags.find(t => t.id === id);
+                      if (!tag) return null;
+                      return (
+                        <span 
+                          key={id} 
+                          className="px-2 py-1 rounded-md text-xs font-medium flex items-center gap-1.5" 
+                          style={{ backgroundColor: `${tag.color || '#6366f1'}30`, color: tag.color || '#6366f1', border: `1px solid ${tag.color || '#6366f1'}50` }}
+                        >
+                          {tag.name}
+                          <button 
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedTagIds(prev => prev.filter(t => t !== id));
+                            }}
+                            className="hover:text-white transition-colors"
+                          >
+                            <X size={12} />
+                          </button>
+                        </span>
+                      );
+                    })}
+                    <input 
+                      type="text"
+                      placeholder={selectedTagIds.length === 0 ? "Buscar ou criar tags..." : ""}
+                      value={tagSearchQuery}
+                      onChange={(e) => {
+                        setTagSearchQuery(e.target.value);
+                        setIsTagDropdownOpen(true);
+                      }}
+                      onFocus={() => setIsTagDropdownOpen(true)}
+                      className="flex-1 bg-transparent border-none outline-none text-sm text-white placeholder-slate-400 min-w-[150px]"
+                      onKeyDown={(e) => {
+                        if (e.key === 'Backspace' && !tagSearchQuery && selectedTagIds.length > 0) {
+                           setSelectedTagIds(prev => prev.slice(0, -1));
+                        } else if (e.key === 'Enter') {
+                           e.preventDefault();
+                           const exactMatch = tags.find(t => t.name.toLowerCase() === tagSearchQuery.toLowerCase());
+                           if (exactMatch) {
+                              if (!selectedTagIds.includes(exactMatch.id)) {
+                                 setSelectedTagIds(prev => [...prev, exactMatch.id]);
+                              }
+                              setTagSearchQuery("");
+                           } else if (tagSearchQuery.trim()) {
+                              createTagMutation.mutate({ name: tagSearchQuery.trim(), color: "#e5ca9a" }, {
+                                onSuccess: (data: any) => {
+                                  if (data?.id) setSelectedTagIds(prev => [...prev, data.id]);
+                                  setTagSearchQuery("");
+                                }
+                              });
+                           }
+                        }
+                      }}
+                    />
+                  </div>
+
+                  <AnimatePresence>
+                    {isTagDropdownOpen && (
+                      <>
+                        <div 
+                          className="fixed inset-0 z-10" 
+                          onClick={() => setIsTagDropdownOpen(false)} 
+                        />
+                        <motion.div 
+                          initial={{ opacity: 0, y: -10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: -10 }}
+                          className="absolute left-0 right-0 top-full mt-2 bg-slate-900 border border-white/10 rounded-xl shadow-2xl z-20 max-h-60 overflow-y-auto p-2"
+                        >
+                          {tags.filter(t => !selectedTagIds.includes(t.id) && t.name.toLowerCase().includes(tagSearchQuery.toLowerCase())).length > 0 ? (
+                            <div className="flex flex-col gap-1">
+                              {tags.filter(t => !selectedTagIds.includes(t.id) && t.name.toLowerCase().includes(tagSearchQuery.toLowerCase())).map(tag => (
+                                <button
+                                  key={tag.id}
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setSelectedTagIds(prev => [...prev, tag.id]);
+                                    setTagSearchQuery("");
+                                    setIsTagDropdownOpen(false);
+                                  }}
+                                  className="w-full text-left px-3 py-2.5 rounded-lg text-sm text-slate-300 hover:text-white hover:bg-white/5 transition-colors flex items-center justify-between group"
+                                >
+                                  <span className="flex items-center gap-2">
+                                    <div className="w-2 h-2 rounded-full" style={{ backgroundColor: tag.color || '#6366f1' }} />
+                                    {tag.name}
+                                  </span>
+                                  <Plus size={14} className="opacity-0 group-hover:opacity-100 transition-opacity text-[#ceaf7a]" />
+                                </button>
+                              ))}
+                            </div>
+                          ) : (
+                            !tagSearchQuery && <div className="text-center p-4 text-sm text-slate-500 font-medium">Nenhuma tag sugerida</div>
+                          )}
+
+                          {tagSearchQuery.trim() && !tags.some(t => t.name.toLowerCase() === tagSearchQuery.toLowerCase()) && (
+                            <div className="mt-1">
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  createTagMutation.mutate({ name: tagSearchQuery.trim(), color: "#e5ca9a" }, {
+                                    onSuccess: (data: any) => {
+                                      if (data?.id) setSelectedTagIds(prev => [...prev, data.id]);
+                                      setTagSearchQuery("");
+                                      setIsTagDropdownOpen(false);
+                                    }
+                                  });
+                                }}
+                                className="w-full text-left px-3 py-2.5 rounded-lg text-sm text-amber-500/90 hover:bg-amber-500/10 transition-colors flex items-center gap-2 font-medium"
+                              >
+                                <Plus size={16} />
+                                Criar tag "{tagSearchQuery}"
+                              </button>
+                            </div>
+                          )}
+                        </motion.div>
+                      </>
+                    )}
+                  </AnimatePresence>
                 </div>
 
                 <div className="flex gap-3 pt-2">
@@ -989,7 +1251,7 @@ export default function App() {
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
               onClick={(e) => e.stopPropagation()}
-              className="backdrop-blur-3xl bg-slate-950/80 rounded-2xl p-6 w-full max-w-md border border-white/10 shadow-[0_0_50px_rgba(0,0,0,0.5)]"
+              className="backdrop-blur-[40px] bg-white/[0.03] rounded-[32px] p-8 w-full max-w-md border border-white/10 shadow-[0_8px_32px_0_rgba(0,0,0,0.4)]"
             >
               <div className="flex items-center justify-between mb-6">
                 <h2 className="text-xl font-semibold text-white">Nova Tag</h2>
@@ -1054,7 +1316,7 @@ export default function App() {
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
               onClick={(e) => e.stopPropagation()}
-              className="backdrop-blur-3xl bg-slate-950/80 rounded-2xl p-6 w-full max-w-md border border-white/10 shadow-[0_0_50px_rgba(0,0,0,0.5)]"
+              className="backdrop-blur-[40px] bg-white/[0.03] rounded-[32px] p-8 w-full max-w-md border border-white/10 shadow-[0_8px_32px_0_rgba(0,0,0,0.4)]"
             >
               <div className="flex items-center justify-between mb-6">
                 <h2 className="text-xl font-semibold text-white">Editar Tag</h2>
@@ -1118,7 +1380,7 @@ export default function App() {
               initial={{ opacity: 0, scale: 0.95, y: 10 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 10 }}
-              className="relative w-full max-w-2xl max-h-[90vh] bg-[#111318] border border-white/10 rounded-2xl shadow-2xl flex flex-col overflow-hidden"
+              className="relative w-full max-w-2xl max-h-[90vh] backdrop-blur-[40px] bg-black/40 border border-white/10 rounded-[32px] shadow-[0_8px_32px_0_rgba(0,0,0,0.5)] flex flex-col overflow-hidden"
               onClick={(e) => e.stopPropagation()}
             >
               {(() => {
@@ -1126,7 +1388,7 @@ export default function App() {
                 if (!prompt) return null;
                 return (
                   <>
-                    <div className="p-6 border-b border-white/10 flex items-center justify-between bg-[#1a1d24]">
+                    <div className="p-8 border-b border-white/10 flex items-center justify-between bg-white/[0.02]">
                       <div>
                         <h2 className="text-2xl font-bold text-white mb-2" style={{ fontFamily: "'Playfair Display', serif" }}>{prompt.title}</h2>
                         <div className="flex gap-2 flex-wrap">
@@ -1136,8 +1398,28 @@ export default function App() {
                             return (
                               <span
                                 key={tag.id}
-                                className="px-2.5 py-0.5 rounded-full text-xs font-medium border"
-                                style={{ color: tag.color, backgroundColor: `${tag.color || '#6366f1'}15`, borderColor: `${tag.color || '#6366f1'}30` }}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setExpandedPromptId(null);
+                                  handleTagFilterToggle(tag.id);
+                                }}
+                                className="px-3 py-1 rounded-md text-[10px] uppercase tracking-wider font-bold border transition-all duration-300 hover:-translate-y-0.5 cursor-pointer shadow-sm hover:shadow-md"
+                                style={{ 
+                                  color: tag.color, 
+                                  backgroundColor: `${tag.color || '#6366f1'}15`, 
+                                  borderColor: `${tag.color || '#6366f1'}40`
+                                }}
+                                onMouseEnter={(e) => {
+                                  e.currentTarget.style.backgroundColor = `${tag.color || '#6366f1'}25`;
+                                  e.currentTarget.style.borderColor = `${tag.color || '#6366f1'}60`;
+                                  e.currentTarget.style.boxShadow = `0 0 12px ${tag.color || '#6366f1'}30`;
+                                }}
+                                onMouseLeave={(e) => {
+                                  e.currentTarget.style.backgroundColor = `${tag.color || '#6366f1'}15`;
+                                  e.currentTarget.style.borderColor = `${tag.color || '#6366f1'}40`;
+                                  e.currentTarget.style.boxShadow = `none`;
+                                }}
+                                title={`Filtrar por ${tag.name}`}
                               >
                                 {tag.name}
                               </span>
@@ -1169,10 +1451,8 @@ export default function App() {
                         </button>
                       </div>
                     </div>
-                    <div className="flex-1 overflow-y-auto bg-[#0b0c10] p-6">
-                      <div className="prose prose-invert max-w-none">
-                        <PromptEditor content={prompt.content} readOnly={true} />
-                      </div>
+                    <div className="flex-1 overflow-y-auto bg-[#0b0c10]/80 p-6">
+                      <DynamicPromptPreview content={prompt.content} onCopy={handleCopyPrompt} />
                     </div>
                   </>
                 );
@@ -1197,7 +1477,7 @@ export default function App() {
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
               onClick={(e) => e.stopPropagation()}
-              className="backdrop-blur-3xl bg-slate-950/80 rounded-2xl p-6 w-full max-w-sm border border-white/10 shadow-[0_0_50px_rgba(0,0,0,0.5)]"
+              className="backdrop-blur-[40px] bg-white/[0.03] rounded-[32px] p-8 w-full max-w-sm border border-white/10 shadow-[0_8px_32px_0_rgba(0,0,0,0.4)]"
             >
               <div className="flex items-center justify-between mb-6">
                 <h2 className="text-xl font-semibold text-white">Exportar Prompts</h2>
@@ -1245,13 +1525,59 @@ export default function App() {
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.8, y: 20 }}
             onClick={scrollToTop}
-            className="fixed bottom-6 right-6 p-3 rounded-full bg-amber-500/90 text-slate-900 shadow-xl hover:bg-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-500/50 backdrop-blur-sm transition-all z-40 group"
+            className="fixed bottom-24 md:bottom-6 right-6 p-3 rounded-full bg-amber-500/90 text-slate-900 shadow-xl hover:bg-amber-400 focus:outline-none focus:ring-2 focus:ring-amber-500/50 backdrop-blur-sm transition-all z-40 group"
             title="Voltar ao topo"
           >
             <ArrowUp size={24} className="group-hover:-translate-y-1 transition-transform" />
           </motion.button>
         )}
       </AnimatePresence>
+
+      {/* Mobile Bottom Navigation */}
+      <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-[#0b0c10]/80 backdrop-blur-3xl border-t border-white/5 pb-safe">
+        <div className="flex items-center justify-around px-2 h-20">
+          <button
+            onClick={() => setCurrentView('home')}
+            className={`flex flex-col items-center justify-center w-full h-full space-y-1 ${currentView === 'home' ? 'text-[#ceaf7a]' : 'text-slate-400 hover:text-slate-300'}`}
+          >
+            <LayoutTemplate size={20} />
+            <span className="text-[10px] font-medium">Início</span>
+          </button>
+          
+          <button
+            onClick={() => setCurrentView('dashboard')}
+            className={`flex flex-col items-center justify-center w-full h-full space-y-1 ${currentView === 'dashboard' ? 'text-[#ceaf7a]' : 'text-slate-400 hover:text-slate-300'}`}
+          >
+            <Activity size={20} />
+            <span className="text-[10px] font-medium">Painel</span>
+          </button>
+
+          <div className="relative w-full h-full flex justify-center">
+            <button
+              onClick={handleOpenNewPrompt}
+              className="absolute -top-6 flex items-center justify-center w-14 h-14 rounded-full bg-gradient-to-r from-amber-600 to-yellow-500 text-slate-950 shadow-[0_0_20px_rgba(206,175,122,0.4)] hover:scale-105 transition-transform"
+            >
+              <Plus size={24} />
+            </button>
+          </div>
+
+          <button
+            onClick={() => setShowFavoritesOnly(!showFavoritesOnly)}
+            className={`flex flex-col items-center justify-center w-full h-full space-y-1 ${showFavoritesOnly ? 'text-red-400' : 'text-slate-400 hover:text-slate-300'}`}
+          >
+            <Heart size={20} className={showFavoritesOnly ? 'fill-red-400' : ''} />
+            <span className="text-[10px] font-medium">Favoritos</span>
+          </button>
+
+          <button
+            onClick={() => setIsMobileMenuOpen(true)}
+            className={`flex flex-col items-center justify-center w-full h-full space-y-1 ${isMobileMenuOpen ? 'text-[#ceaf7a]' : 'text-slate-400 hover:text-slate-300'}`}
+          >
+            <Folder size={20} />
+            <span className="text-[10px] font-medium">Tags</span>
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

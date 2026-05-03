@@ -24,9 +24,11 @@ export const trpc = {
       useMutation: ({ onSuccess, onError }: any) => {
         return {
           isPending: false,
-          mutate: (input: any) => {
-            mockPrompts.push({ ...input, id: Date.now(), isFavorite: 0 });
-            onSuccess?.();
+          mutate: (input: any, options?: any) => {
+            const newItem = { ...input, id: Date.now(), isFavorite: 0 };
+            mockPrompts.push(newItem);
+            onSuccess?.(newItem);
+            options?.onSuccess?.(newItem);
           }
         };
       }
@@ -69,9 +71,11 @@ export const trpc = {
       useMutation: ({ onSuccess }: any) => {
         return {
           isPending: false,
-          mutate: (input: any) => {
-            mockTags.push({ ...input, id: Date.now() });
-            onSuccess?.();
+          mutate: (input: any, options?: any) => {
+            const newTag = { ...input, id: Date.now() };
+            mockTags.push(newTag);
+            onSuccess?.(newTag);
+            options?.onSuccess?.(newTag);
           }
         };
       }
